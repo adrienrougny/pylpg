@@ -1,0 +1,15 @@
+*.pdf
+*.swp
+*.pyc
+build/
+__pycache__/
+.ipynb_checkpoints/
+dist/
+.tox/
+.coverage
+htmlcov/
+site/
+plans/
+debates/
+benchmarks/
+TODO.txt

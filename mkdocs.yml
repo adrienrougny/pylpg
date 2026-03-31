@@ -1,0 +1,60 @@
+site_name: pylpg
+site_url: https://rougny.github.io/pylpg/
+nav:
+  - Home: index.md
+  - Getting started: getting_started.md
+  - API reference:
+    - Node: api_reference/node.md
+    - Relationship: api_reference/relationship.md
+    - Session: api_reference/session.md
+    - Types: api_reference/types.md
+    - Backends:
+      - Base: api_reference/backend/base.md
+      - Neo4j: api_reference/backend/neo4j.md
+      - FalkorDB: api_reference/backend/falkordb.md
+      - FalkorDBLite: api_reference/backend/falkordblite.md
+  - Changelog: CHANGELOG.md
+  - About: about.md
+theme:
+  name: material
+  features:
+    - navigation.instant
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+plugins:
+  - search
+  - autorefs
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          paths: [src]
+          options:
+            inherited_members: true
+            group_by_category: false
+            show_category_heading: false
+            show_root_heading: true
+            parameter_headings: false
+            show_signature_annotations: true
+            separate_signature: true
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            show_if_no_docstring: false
+            signature_crossrefs: true
+            merge_init_into_class: true
+            summary: true
+            extensions:
+              - griffe_fieldz: {include_inherited: true}
+              - griffe_inherited_docstrings
+markdown_extensions:
+  - toc:
+      toc_depth: 3
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
