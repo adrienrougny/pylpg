@@ -51,7 +51,6 @@ All source code is under `src/pylpg/`.
 - **`types.py`** — Property type utilities. Extracts primitive properties and relationship descriptors, validates types at class definition time.
 - **`cypher.py`** — Shared Cypher query builder used by cypher-based backends. Not imported by session.
 - **`session.py`** — Orchestrates persistence via `save()`, `delete()`, `execute_query()`. Handles node hydration from query results.
-- **`active_session.py`** — Thread-local active session management.
 - **`backend/`** — `Backend` ABC with full CRUD, batch, and traversal operations:
   - `Neo4jBackend` — uses UNWIND for batch operations
   - `FalkorDBBackend` — uses individual queries for batch (optimal for FalkorDB)

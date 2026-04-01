@@ -6,7 +6,8 @@ A Python Object Graph Mapper for labeled property graph databases.
 
 - Simple model definition using Python type annotations
 - Multi-backend: Neo4j, FalkorDB, FalkorDBLite (embedded)
-- Implicit session management
+- Session-based persistence with node binding
+- Transactional batch operations (Neo4j)
 - Node hydration from raw query results
 
 ## Installation
@@ -42,16 +43,16 @@ backend = pylpg.backend.neo4j.Neo4jBackend(
 with pylpg.session.Session(backend) as session:
     alice = Person(name="Alice", age=30)
     bob = Person(name="Bob")
-    alice.save()
-    bob.save()
+    session.save(alice)
+    session.save(bob)
 
     rel = Knows(source=alice, target=bob, since="2024")
-    rel.save()
+    session.save(rel)
 ```
 
 ## Documentation
 
-Full documentation is available at [https://adienrougny.github.io/pylpg/](https://adrienrougny.github.io/pylpg/).
+Full documentation is available at [https://adrienrougny.github.io/pylpg/](https://adrienrougny.github.io/pylpg/).
 
 ## License
 

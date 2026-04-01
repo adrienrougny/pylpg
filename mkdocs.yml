@@ -13,7 +13,6 @@ nav:
       - Neo4j: api_reference/backend/neo4j.md
       - FalkorDB: api_reference/backend/falkordb.md
       - FalkorDBLite: api_reference/backend/falkordblite.md
-  - Changelog: CHANGELOG.md
   - About: about.md
 theme:
   name: material

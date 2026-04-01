@@ -7,7 +7,7 @@
 - **Simple model definition** — nodes and relationships are plain Python classes with type annotations
 - **Multi-backend** — supports Neo4j, FalkorDB, and FalkorDBLite (embedded)
 - **Batch operations** — optimized per backend (UNWIND for Neo4j, individual queries for FalkorDB)
-- **Implicit session** — `node.save()` works without passing a session around
+- **Session-based persistence** — saved nodes are bound to their session for traversal and updates
 - **Node hydration** — raw query results can be automatically resolved into Python objects
 - **Traversal** — relationship descriptors provide `all()` and `connect()` methods
 
@@ -53,20 +53,20 @@ backend = pylpg.backend.neo4j.Neo4jBackend(
     password="password",
 )
 
-with pylpg.session.Session(backend):
+with pylpg.session.Session(backend) as session:
     alice = Person(name="Alice", age=30)
     bob = Person(name="Bob", age=25)
 
     # Save individually
-    alice.save()
-    bob.save()
+    session.save(alice)
+    session.save(bob)
 
-    # Create relationship via connect()
+    # Create relationship via connect() (node must be saved first)
     alice.friends.connect(bob, since="2024")
 
     # Or create relationship directly
     rel = Knows(source=alice, target=bob, since="2024")
-    rel.save()
+    session.save(rel)
 
     # Batch save
     session.save([
@@ -74,7 +74,7 @@ with pylpg.session.Session(backend):
         Person(name="Dave"),
     ])
 
-    # Traverse
+    # Traverse (node is bound to session after save)
     friends = alice.friends.all()
 
     # Raw query with node hydration

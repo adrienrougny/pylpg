@@ -103,10 +103,10 @@ import pylpg.session
 
 with pylpg.session.Session(backend) as session:
     alice = Person(name="Alice")
-    alice.save()
+    session.save(alice)
 ```
 
-Within the `with` block, `node.save()` and `node.delete()` use the active session automatically.
+When a node is saved, it becomes bound to the session. This allows traversal and relationship operations to work without explicitly passing the session around.
 
 ## CRUD operations
 
@@ -114,20 +114,20 @@ Within the `with` block, `node.save()` and `node.delete()` use the active sessio
 
 ```python
 alice = Person(name="Alice", age=30)
-alice.save()
+session.save(alice)
 ```
 
 ### Updating nodes
 
 ```python
 alice.name = "Alice Smith"
-alice.save()
+session.save(alice)
 ```
 
 ### Deleting nodes
 
 ```python
-alice.delete()
+session.delete(alice)
 ```
 
 ### Creating relationships
@@ -137,8 +137,8 @@ Two approaches:
 **Direct instantiation:**
 
 ```python
-rel = Knows(source=alice, target=bob, since="2024")
-rel.save()  # auto-saves unsaved source/target nodes
+relationship = Knows(source=alice, target=bob, since="2024")
+session.save(relationship)  # auto-saves unsaved source/target nodes
 ```
 
 **Via descriptor:**
@@ -176,8 +176,8 @@ session.save(relationships)
 
 Each backend implements batch operations optimally:
 
-- **Neo4j** — uses `UNWIND` queries for massive speedups (up to 40x at 50k items)
-- **FalkorDB / FalkorDBLite** — uses individual queries (optimal for these backends)
+- **Neo4j** — uses `UNWIND` queries in a single transaction for atomicity and performance
+- **FalkorDB / FalkorDBLite** — uses individual queries (FalkorDB does not support multi-query transactions)
 
 ## Raw queries
 
