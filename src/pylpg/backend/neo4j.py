@@ -34,11 +34,19 @@ class Neo4jBackend(pylpg.backend.base.Backend):
         self._database = database
 
     def execute_query(
-        self, cypher: str, parameters: dict[str, typing.Any] | None = None
+        self,
+        cypher: str,
+        parameters: dict[str, typing.Any] | None = None,
+        transaction: neo4j.Transaction | None = None,
     ) -> list[dict[str, typing.Any]]:
-        records, summary, keys = self._driver.execute_query(
-            cypher, parameters_=parameters or {}, database_=self._database
-        )
+        if transaction is not None:
+            result = transaction.run(cypher, parameters=parameters or {})
+            keys = result.keys()
+            records = list(result)
+        else:
+            records, summary, keys = self._driver.execute_query(
+                cypher, parameters_=parameters or {}, database_=self._database
+            )
         return [dict(zip(keys, record.values())) for record in records]
 
     def is_node(self, value: typing.Any) -> bool:
@@ -139,17 +147,24 @@ class Neo4jBackend(pylpg.backend.base.Backend):
                         item
                     )
 
-        for new_nodes in new_node_groups.values():
-            self._batch_create_nodes(nodes=new_nodes)
-
-        for existing_nodes in existing_node_groups.values():
-            self._batch_update_nodes(nodes=existing_nodes)
-
-        for new_relationships in new_relationship_groups.values():
-            self._batch_create_relationships(relationships=new_relationships)
-
-        for existing_relationships in existing_relationship_groups.values():
-            self._batch_update_relationships(relationships=existing_relationships)
+        with self._driver.session(database=self._database) as session:
+            with session.begin_transaction() as transaction:
+                for new_nodes in new_node_groups.values():
+                    self._batch_create_nodes(nodes=new_nodes, transaction=transaction)
+                for existing_nodes in existing_node_groups.values():
+                    self._batch_update_nodes(
+                        nodes=existing_nodes, transaction=transaction
+                    )
+                for new_relationships in new_relationship_groups.values():
+                    self._batch_create_relationships(
+                        relationships=new_relationships, transaction=transaction
+                    )
+                for existing_relationships in existing_relationship_groups.values():
+                    self._batch_update_relationships(
+                        relationships=existing_relationships,
+                        transaction=transaction,
+                    )
+                transaction.commit()
 
     def _triage_node(
         self,
@@ -167,30 +182,40 @@ class Neo4jBackend(pylpg.backend.base.Backend):
         else:
             existing_node_groups.setdefault(node.__labels__, []).append(node)
 
-    def _batch_create_nodes(self, nodes: list[pylpg.node.Node]) -> None:
+    def _batch_create_nodes(
+        self,
+        nodes: list[pylpg.node.Node],
+        transaction: neo4j.Transaction,
+    ) -> None:
         cypher, params = pylpg.cypher.build_batch_create_nodes_query(
             nodes=nodes, database_id_func_name=self._database_id_func_name
         )
-        results = self.execute_query(cypher, params)
+        results = self.execute_query(cypher, params, transaction=transaction)
         temp_id_to_node = {node._temp_id: node for node in nodes}
         for row in results:
             node = temp_id_to_node[row["temp_id"]]
             node._database_id = row["_database_id"]
 
-    def _batch_update_nodes(self, nodes: list[pylpg.node.Node]) -> None:
+    def _batch_update_nodes(
+        self,
+        nodes: list[pylpg.node.Node],
+        transaction: neo4j.Transaction,
+    ) -> None:
         cypher, params = pylpg.cypher.build_batch_update_nodes_query(
             nodes=nodes, database_id_func_name=self._database_id_func_name
         )
-        self.execute_query(cypher, params)
+        self.execute_query(cypher, params, transaction=transaction)
 
     def _batch_create_relationships(
-        self, relationships: list[pylpg.relationship.Relationship]
+        self,
+        relationships: list[pylpg.relationship.Relationship],
+        transaction: neo4j.Transaction,
     ) -> None:
         cypher, params = pylpg.cypher.build_batch_create_relationships_query(
             relationships=relationships,
             database_id_func_name=self._database_id_func_name,
         )
-        results = self.execute_query(cypher, params)
+        results = self.execute_query(cypher, params, transaction=transaction)
         temp_id_to_relationship = {
             relationship._temp_id: relationship for relationship in relationships
         }
@@ -199,13 +224,15 @@ class Neo4jBackend(pylpg.backend.base.Backend):
             relationship._database_id = row["_database_id"]
 
     def _batch_update_relationships(
-        self, relationships: list[pylpg.relationship.Relationship]
+        self,
+        relationships: list[pylpg.relationship.Relationship],
+        transaction: neo4j.Transaction,
     ) -> None:
         cypher, params = pylpg.cypher.build_batch_update_relationships_query(
             relationships=relationships,
             database_id_func_name=self._database_id_func_name,
         )
-        self.execute_query(cypher, params)
+        self.execute_query(cypher, params, transaction=transaction)
 
     def traverse(
         self,
