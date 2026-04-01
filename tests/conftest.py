@@ -7,7 +7,6 @@ import testcontainers.neo4j
 import testcontainers.core.container
 import testcontainers.core.waiting_utils
 
-import pylpg.active_session
 import pylpg.backend.neo4j
 import pylpg.backend.falkordb
 import pylpg.backend.falkordblite
@@ -104,7 +103,4 @@ def backend(request, neo4j_backend, falkordb_backend, falkordblite_backend):
 
 @pytest.fixture(autouse=True)
 def session(backend):
-    session = pylpg.session.Session(backend)
-    pylpg.active_session.set_active_session(session)
-    yield session
-    pylpg.active_session.set_active_session(None)
+    return pylpg.session.Session(backend)

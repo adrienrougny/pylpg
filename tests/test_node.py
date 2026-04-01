@@ -4,39 +4,39 @@ import tests.models
 def test_create_node(session):
     alice = tests.models.Person(name="Alice", age=30)
     assert not alice.is_saved()
-    alice.save()
+    session.save(alice)
     assert alice.is_saved()
     assert alice._database_id is not None
 
 
 def test_create_node_with_default(session):
     bob = tests.models.Person(name="Bob")
-    bob.save()
+    session.save(bob)
     assert bob.is_saved()
     assert bob.age is None
 
 
 def test_update_node(session):
     alice = tests.models.Person(name="Alice", age=30)
-    alice.save()
+    session.save(alice)
     original_id = alice._database_id
     alice.name = "Alice Updated"
-    alice.save()
+    session.save(alice)
     assert alice._database_id == original_id
 
 
 def test_delete_node(session):
     alice = tests.models.Person(name="Alice")
-    alice.save()
+    session.save(alice)
     assert alice.is_saved()
-    alice.delete()
+    session.delete(alice)
     assert not alice.is_saved()
 
 
 def test_delete_unsaved_node_raises(session):
     alice = tests.models.Person(name="Alice")
     try:
-        alice.delete()
+        session.delete(alice)
         assert False, "Should have raised ValueError"
     except ValueError:
         pass

@@ -2,7 +2,6 @@
 
 import typing
 
-import pylpg.active_session
 import pylpg.backend.base
 import pylpg.node
 import pylpg.relationship
@@ -11,21 +10,13 @@ import pylpg.relationship
 class Session:
     """Orchestrates saving, deleting, and querying graph objects.
 
-    Use as a context manager to set the active session for `node.save()`
-    and `node.delete()` calls.
+    Use as a context manager to ensure the backend connection is closed.
 
     Example:
         ```python
         with Session(backend) as session:
             alice = Person(name="Alice")
-            alice.save()
-        ```
-
-    Or set it manually:
-        ```python
-        session = Session(backend)
-        pylpg.active_session.set_active_session(session)
-        alice.save()
+            session.save(alice)
         ```
     """
 
@@ -33,8 +24,6 @@ class Session:
         self._backend = backend
 
     def __enter__(self) -> "Session":
-        self._previous_session = pylpg.active_session.get_active_session_or_none()
-        pylpg.active_session.set_active_session(self)
         return self
 
     def __exit__(
@@ -43,7 +32,6 @@ class Session:
         exc_val: BaseException | None,
         exc_tb: typing.Any,
     ) -> bool:
-        pylpg.active_session.set_active_session(self._previous_session)
         self._backend.close()
         return False
 
@@ -100,6 +88,12 @@ class Session:
             self._save_relationship(item)
         elif isinstance(item, list):
             self._backend.save_batch(items=item)
+            for element in item:
+                if isinstance(element, pylpg.node.Node):
+                    element._session = self
+                elif isinstance(element, pylpg.relationship.Relationship):
+                    element.source._session = self
+                    element.target._session = self
 
     def _save_node(self, node: pylpg.node.Node) -> None:
         if node.is_saved():
@@ -108,6 +102,7 @@ class Session:
             result = self._backend.create_node(node=node)
         if result:
             node._database_id = result["_database_id"]
+        node._session = self
 
     def _save_relationship(self, relationship: pylpg.relationship.Relationship) -> None:
         if not relationship.source.is_saved():
@@ -150,6 +145,7 @@ class Session:
             raise ValueError("Cannot delete unsaved node")
         self._backend.delete_node(node=node)
         node._database_id = None
+        node._session = None
 
     def _delete_relationship(
         self, relationship: pylpg.relationship.Relationship
@@ -172,36 +168,43 @@ class Session:
             relationship_type=relationship_type,
             direction=direction,
         )
-        resolved = [self._hydrate_row(row) for row in results]
-        return [row["target"] for row in resolved]
+        hydrated_results = self._hydrate_results(results)
+        return [row["target"] for row in hydrated_results]
+
+    def _hydrate_results(
+        self, results: list[dict[str, typing.Any]]
+    ) -> list[dict[str, typing.Any]]:
+        hydrated_results = [self._hydrate_row(row) for row in results]
+        return hydrated_results
 
     def _hydrate_row(self, row: dict[str, typing.Any]) -> dict[str, typing.Any]:
-        hydrated: dict[str, typing.Any] = {}
+        hydrated_row: dict[str, typing.Any] = {}
         for key, item in row.items():
-            hydrated[key] = self._hydrate_item(item)
-        return hydrated
+            hydrated_row[key] = self._hydrate_item(item)
+        return hydrated_row
 
     def _hydrate_item(self, item: typing.Any) -> typing.Any:
         if self._backend.is_node(item):
-            normalized_node = self._backend.deserialize_node(record=item)
-            return self._hydrate_node(normalized_node=normalized_node)
+            deserialized_node = self._backend.deserialize_node(record=item)
+            return self._hydrate_node(deserialized_node=deserialized_node)
         if isinstance(item, list):
             return [self._hydrate_item(element) for element in item]
         if isinstance(item, dict):
             return {key: self._hydrate_item(element) for key, element in item.items()}
         return item
 
-    @staticmethod
     def _hydrate_node(
-        normalized_node: dict[str, typing.Any],
+        self,
+        deserialized_node: dict[str, typing.Any],
     ) -> pylpg.node.Node:
-        labels = normalized_node["_labels"]
+        labels = deserialized_node["_labels"]
         cls = pylpg.node.Node.resolve_class(labels=labels)
         properties = {
             key: value
-            for key, value in normalized_node.items()
+            for key, value in deserialized_node.items()
             if key in cls.__primitive_properties__
         }
         node = cls(**properties)
-        node._database_id = normalized_node["_database_id"]
+        node._database_id = deserialized_node["_database_id"]
+        node._session = self
         return node

@@ -4,7 +4,9 @@ import uuid
 import typing
 import enum
 
-import pylpg.active_session
+if typing.TYPE_CHECKING:
+    import pylpg.session
+
 import pylpg.types
 import pylpg.node
 
@@ -65,14 +67,6 @@ class Relationship:
                 result[property_name] = property_value
         return result
 
-    def save(self) -> None:
-        """Save this relationship to the database using the active session."""
-        pylpg.active_session.get_active_session().save(self)
-
-    def delete(self) -> None:
-        """Delete this relationship from the database using the active session."""
-        pylpg.active_session.get_active_session().delete(self)
-
 
 class Direction(enum.Enum):
     """Direction of a relationship traversal."""
@@ -96,9 +90,17 @@ class BoundRelationship:
         self._owner = owner
         self._descriptor = descriptor
 
+    def _get_session(self) -> "pylpg.session.Session":
+        session = self._owner._session
+        if session is None:
+            raise ValueError(
+                "Node is not bound to a session. Save it first with session.save()."
+            )
+        return session
+
     def all(self) -> list[pylpg.node.Node]:
         """Return all nodes connected to the owner via this relationship."""
-        return pylpg.active_session.get_active_session()._traverse(
+        return self._get_session()._traverse(
             node=self._owner,
             relationship_type=self._descriptor._relationship_class.__type__,
             direction=self._descriptor._direction,
@@ -109,9 +111,12 @@ class BoundRelationship:
 
         Example:
             ```python
+            session.save(alice)
+            session.save(bob)
             alice.friends.connect(bob, since="2024")
             ```
         """
+        session = self._get_session()
         if self._descriptor._direction == Direction.INCOMING:
             (source, target) = (target_node, self._owner)
         else:
@@ -121,7 +126,7 @@ class BoundRelationship:
             target=target,
             **properties,
         )
-        relationship.save()
+        session.save(relationship)
 
 
 class RelationshipDescriptor:

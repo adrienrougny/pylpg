@@ -5,7 +5,7 @@ import tests.models
 
 def test_execute_query_raw(session):
     alice = tests.models.Person(name="Alice")
-    alice.save()
+    session.save(alice)
     results = session.execute_query(
         "MATCH (node:Person {name: 'Alice'}) RETURN node.name AS name"
     )
@@ -15,7 +15,7 @@ def test_execute_query_raw(session):
 
 def test_execute_query_with_resolve_nodes(session):
     alice = tests.models.Person(name="QueryResolve")
-    alice.save()
+    session.save(alice)
     results = session.execute_query(
         "MATCH (node:Person {name: 'QueryResolve'}) RETURN node",
         resolve_nodes=True,
@@ -28,7 +28,7 @@ def test_execute_query_with_resolve_nodes(session):
 
 def test_execute_query_without_resolve_nodes(session):
     alice = tests.models.Person(name="QueryNoResolve")
-    alice.save()
+    session.save(alice)
     results = session.execute_query(
         "MATCH (node:Person {name: 'QueryNoResolve'}) RETURN node",
         resolve_nodes=False,
@@ -40,7 +40,7 @@ def test_execute_query_without_resolve_nodes(session):
 
 def test_execute_query_mixed_results(session):
     alice = tests.models.Person(name="MixedResult")
-    alice.save()
+    session.save(alice)
     results = session.execute_query(
         "MATCH (node:Person {name: 'MixedResult'}) RETURN node, node.name AS name",
         resolve_nodes=True,

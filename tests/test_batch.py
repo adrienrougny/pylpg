@@ -49,7 +49,7 @@ def test_batch_update_nodes(session):
 
 def test_batch_mixed_new_and_existing(session):
     alice = tests.models.Person(name="Alice")
-    alice.save()
+    session.save(alice)
     bob = tests.models.Person(name="Bob")
     alice.name = "Alice Updated"
     session.save([alice, bob])

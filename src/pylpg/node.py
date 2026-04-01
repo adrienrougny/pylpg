@@ -3,7 +3,6 @@
 import uuid
 import typing
 
-import pylpg.active_session
 import pylpg.types
 
 
@@ -45,6 +44,7 @@ class Node:
 
     def __init__(self, **kwargs: typing.Any) -> None:
         self._database_id = None
+        self._session: typing.Any = None
         self._temp_id = uuid.uuid4().hex
         for name in self.__primitive_properties__:
             if name in kwargs:
@@ -72,11 +72,3 @@ class Node:
             if value is not None:
                 result[property_name] = value
         return result
-
-    def save(self) -> None:
-        """Save this node to the database using the active session."""
-        pylpg.active_session.get_active_session().save(self)
-
-    def delete(self) -> None:
-        """Delete this node from the database using the active session."""
-        pylpg.active_session.get_active_session().delete(self)
