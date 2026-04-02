@@ -30,8 +30,12 @@ class Node:
 
     def __init_subclass__(cls, **kwargs: typing.Any) -> None:
         super().__init_subclass__(**kwargs)
-        if not cls.__labels__:
-            cls.__labels__ = frozenset({cls.__name__})
+        if "__labels__" not in cls.__dict__:
+            parent_labels = frozenset()
+            for base in cls.__mro__[1:]:
+                if hasattr(base, "__labels__") and base.__labels__:
+                    parent_labels = parent_labels | base.__labels__
+            cls.__labels__ = parent_labels | frozenset({cls.__name__})
         cls._label_registry[cls.__labels__] = cls
         cls._name_registry[cls.__name__] = cls
         cls.__primitive_properties__ = pylpg.types.get_primitive_properties(cls)
