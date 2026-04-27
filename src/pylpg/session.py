@@ -155,6 +155,20 @@ class Session:
         self._backend.delete_relationship(relationship=relationship)
         relationship._database_id = None
 
+    def delete_all(self) -> None:
+        """Delete every node and relationship in the database.
+
+        Delegates to the backend so each backend can apply its own
+        strategy (e.g. FalkorDB drops the graph to clear stale label
+        indexes that survive a plain `MATCH (n) DETACH DELETE n`).
+
+        Example:
+            ```python
+            session.delete_all()
+            ```
+        """
+        self._backend.delete_all()
+
     def _traverse(
         self,
         node: pylpg.node.Node,
