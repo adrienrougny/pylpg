@@ -4,6 +4,7 @@ import typing
 
 import falkordb
 import falkordb.node
+import redis.exceptions
 
 import pylpg.backend.base
 import pylpg.cypher
@@ -145,7 +146,14 @@ class FalkorDBBackend(pylpg.backend.base.Backend):
         return self.execute_query(cypher, params)
 
     def delete_all(self) -> None:
-        self.execute_query(pylpg.cypher.build_delete_all_query())
+        # FalkorDB's DETACH DELETE leaves stale label-index entries that
+        # surface as phantom nodes on subsequent MATCH (n:Label) queries.
+        # Drop the entire graph and re-select instead.
+        try:
+            self._graph.delete()
+        except redis.exceptions.ResponseError:
+            pass
+        self._graph = self._db.select_graph(self._graph.name)
 
     def close(self) -> None:
         pass
