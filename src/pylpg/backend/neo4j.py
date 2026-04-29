@@ -28,9 +28,16 @@ class Neo4jBackend(pylpg.backend.base.Backend):
         username: str = "neo4j",
         password: str = "neo4j",
         protocol: str = "bolt",
+        notifications_min_severity: typing.Literal["off", "information", "warning"]
+        | None = None,
     ) -> None:
         uri = f"{protocol}://{hostname}:{port}"
-        self._driver = neo4j.GraphDatabase.driver(uri, auth=(username, password))
+        driver_kwargs: dict[str, typing.Any] = {"auth": (username, password)}
+        if notifications_min_severity is not None:
+            driver_kwargs["notifications_min_severity"] = (
+                notifications_min_severity.upper()
+            )
+        self._driver = neo4j.GraphDatabase.driver(uri, **driver_kwargs)
         self._database = database
 
     def execute_query(
