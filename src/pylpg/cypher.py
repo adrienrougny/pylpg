@@ -183,18 +183,25 @@ def build_delete_all_query() -> str:
     return "MATCH (node) DETACH DELETE node"
 
 
+def _traverse_pattern(
+    relationship_type: str, direction: pylpg.relationship.Direction
+) -> str:
+    if direction == pylpg.relationship.Direction.OUTGOING:
+        return f"(source)-[:{relationship_type}]->(target)"
+    if direction == pylpg.relationship.Direction.INCOMING:
+        return f"(source)<-[:{relationship_type}]-(target)"
+    return f"(source)-[:{relationship_type}]-(target)"
+
+
 def build_traverse_query(
     node: pylpg.node.Node,
     relationship_type: str,
     direction: pylpg.relationship.Direction,
     database_id_func_name: str,
 ) -> tuple[str, dict[str, typing.Any]]:
-    if direction == pylpg.relationship.Direction.OUTGOING:
-        pattern = f"(source)-[:{relationship_type}]->(target)"
-    elif direction == pylpg.relationship.Direction.INCOMING:
-        pattern = f"(source)<-[:{relationship_type}]-(target)"
-    else:
-        pattern = f"(source)-[:{relationship_type}]-(target)"
+    pattern = _traverse_pattern(
+        relationship_type=relationship_type, direction=direction
+    )
     cypher = (
         f"MATCH {pattern} "
         f"WHERE {database_id_func_name}(source) = $source_id "
@@ -202,3 +209,21 @@ def build_traverse_query(
     )
     params = {"source_id": node._database_id}
     return cypher, params
+
+
+def build_batch_traverse_query(
+    source_ids: list[typing.Any],
+    relationship_type: str,
+    direction: pylpg.relationship.Direction,
+    database_id_func_name: str,
+) -> tuple[str, dict[str, typing.Any]]:
+    pattern = _traverse_pattern(
+        relationship_type=relationship_type, direction=direction
+    )
+    cypher = (
+        f"UNWIND $source_ids AS source_id "
+        f"MATCH {pattern} "
+        f"WHERE {database_id_func_name}(source) = source_id "
+        f"RETURN source_id, target"
+    )
+    return cypher, {"source_ids": source_ids}

@@ -34,6 +34,19 @@ class FalkorDBBackend(pylpg.backend.base.Backend):
         )
         self._graph = self._db.select_graph(database)
 
+    def result_set_limit(self) -> int | None:
+        # FalkorDB truncates any result set to RESULTSET_SIZE rows without
+        # raising, so batched traversal must know the limit. A non-positive
+        # value means unlimited. Not cached: the read costs ~47us, well under
+        # a trivial round trip, and reading it every time picks up a runtime
+        # GRAPH.CONFIG SET without needing a new session.
+        # A server too old to know RESULTSET_SIZE has no cap to report.
+        try:
+            value = int(self._db.config_get("RESULTSET_SIZE"))
+        except (redis.exceptions.ResponseError, TypeError, ValueError):
+            value = -1
+        return value if value > 0 else None
+
     def execute_query(
         self, cypher: str, parameters: dict[str, typing.Any] | None = None
     ) -> list[dict[str, typing.Any]]:

@@ -1,10 +1,13 @@
 """Session for orchestrating object persistence."""
 
+import contextlib
 import typing
 
 import pylpg.backend.base
 import pylpg.node
 import pylpg.relationship
+
+_NodeEdges = dict[tuple[str, pylpg.relationship.Direction], list[pylpg.node.Node]]
 
 
 class Session:
@@ -22,6 +25,7 @@ class Session:
 
     def __init__(self, backend: pylpg.backend.base.Backend) -> None:
         self._backend = backend
+        self._prefetch: dict[typing.Any, _NodeEdges] | None = None
 
     def __enter__(self) -> "Session":
         return self
@@ -82,6 +86,7 @@ class Session:
             session.save([alice, bob, relationship])
             ```
         """
+        self._prefetch = None
         if isinstance(item, pylpg.node.Node):
             self._save_node(item)
         elif isinstance(item, pylpg.relationship.Relationship):
@@ -132,6 +137,7 @@ class Session:
             session.delete([alice, bob])
             ```
         """
+        self._prefetch = None
         if isinstance(item, pylpg.node.Node):
             self._delete_node(item)
         elif isinstance(item, pylpg.relationship.Relationship):
@@ -167,7 +173,64 @@ class Session:
             session.delete_all()
             ```
         """
+        self._prefetch = None
         self._backend.delete_all()
+
+    @contextlib.contextmanager
+    def prefetch(self, roots: list[pylpg.node.Node]) -> typing.Iterator[None]:
+        """Batch-load the subgraph reachable from `roots` into memory.
+
+        Inside the block, traversal reads the snapshot instead of querying:
+        one query per (relationship type, direction) per level, rather than
+        one per node per field. Saving or deleting inside the block drops the
+        snapshot; writes made through raw `execute_query` do not.
+
+        Example:
+            ```python
+            with session.prefetch(roots=[alice, bob]):
+                for friend in alice.friends.all():  # no query
+                    ...
+            ```
+        """
+        frontier = {node._database_id: node for node in roots if node.is_saved()}
+        cache: dict[typing.Any, _NodeEdges] = {
+            database_id: {} for database_id in frontier
+        }
+        while frontier:
+            sources_by_key: dict[
+                tuple[str, pylpg.relationship.Direction], set[typing.Any]
+            ] = {}
+            for node in frontier.values():
+                for descriptor in type(node).__relationship_descriptors__.values():
+                    key = (
+                        descriptor._relationship_class.__type__,
+                        descriptor._direction,
+                    )
+                    sources_by_key.setdefault(key, set()).add(node._database_id)
+            next_frontier: dict[typing.Any, pylpg.node.Node] = {}
+            for key, source_ids in sources_by_key.items():
+                (relationship_type, direction) = key
+                rows = self._backend.traverse_batch(
+                    source_ids=list(source_ids),
+                    relationship_type=relationship_type,
+                    direction=direction,
+                )
+                for row in rows:
+                    target = self._hydrate_node(
+                        deserialized_node=self._backend.deserialize_node(
+                            record=row["target"]
+                        )
+                    )
+                    cache[row["source_id"]].setdefault(key, []).append(target)
+                    if target._database_id not in cache:
+                        cache[target._database_id] = {}
+                        next_frontier[target._database_id] = target
+            frontier = next_frontier
+        self._prefetch = cache
+        try:
+            yield
+        finally:
+            self._prefetch = None
 
     def _traverse(
         self,
@@ -175,6 +238,10 @@ class Session:
         relationship_type: str,
         direction: pylpg.relationship.Direction,
     ) -> list[pylpg.node.Node]:
+        if self._prefetch is not None:
+            node_edges = self._prefetch.get(node._database_id)
+            if node_edges is not None:
+                return list(node_edges.get((relationship_type, direction), ()))
         if not node.is_saved():
             raise ValueError("Cannot traverse from unsaved node")
         results = self._backend.traverse(
