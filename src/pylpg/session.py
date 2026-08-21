@@ -7,7 +7,10 @@ import pylpg.backend.base
 import pylpg.node
 import pylpg.relationship
 
-_NodeEdges = dict[tuple[str, pylpg.relationship.Direction], list[pylpg.node.Node]]
+_NodeEdges = dict[
+    tuple[str, pylpg.relationship.Direction],
+    list[tuple[pylpg.node.Node, dict[str, typing.Any]]],
+]
 
 
 class Session:
@@ -221,7 +224,12 @@ class Session:
                             record=row["target"]
                         )
                     )
-                    cache[row["source_id"]].setdefault(key, []).append(target)
+                    relationship = self._backend.deserialize_relationship(
+                        record=row["relationship"]
+                    )
+                    cache[row["source_id"]].setdefault(key, []).append(
+                        (target, relationship)
+                    )
                     if target._database_id not in cache:
                         cache[target._database_id] = {}
                         next_frontier[target._database_id] = target
@@ -237,26 +245,29 @@ class Session:
         node: pylpg.node.Node,
         relationship_type: str,
         direction: pylpg.relationship.Direction,
-    ) -> list[pylpg.node.Node]:
+    ) -> list[tuple[pylpg.node.Node, dict[str, typing.Any]]]:
         if self._prefetch is not None:
             node_edges = self._prefetch.get(node._database_id)
             if node_edges is not None:
                 return list(node_edges.get((relationship_type, direction), ()))
         if not node.is_saved():
             raise ValueError("Cannot traverse from unsaved node")
-        results = self._backend.traverse(
+        rows = self._backend.traverse(
             node=node,
             relationship_type=relationship_type,
             direction=direction,
         )
-        hydrated_results = self._hydrate_results(results)
-        return [row["target"] for row in hydrated_results]
-
-    def _hydrate_results(
-        self, results: list[dict[str, typing.Any]]
-    ) -> list[dict[str, typing.Any]]:
-        hydrated_results = [self._hydrate_row(row) for row in results]
-        return hydrated_results
+        return [
+            (
+                self._hydrate_node(
+                    deserialized_node=self._backend.deserialize_node(
+                        record=row["target"]
+                    )
+                ),
+                self._backend.deserialize_relationship(record=row["relationship"]),
+            )
+            for row in rows
+        ]
 
     def _hydrate_row(self, row: dict[str, typing.Any]) -> dict[str, typing.Any]:
         hydrated_row: dict[str, typing.Any] = {}

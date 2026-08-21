@@ -9,7 +9,7 @@
 - **Batch operations** — optimized per backend (UNWIND for Neo4j, individual queries for FalkorDB)
 - **Session-based persistence** — saved nodes are bound to their session for traversal and updates
 - **Node hydration** — raw query results can be automatically resolved into Python objects
-- **Traversal** — relationship descriptors provide `all()` and `connect()` methods
+- **Traversal** — relationship descriptors provide `all()`, `relationships()` and `connect()` methods
 
 ## Installation
 
@@ -76,6 +76,10 @@ with pylpg.session.Session(backend) as session:
 
     # Traverse (node is bound to session after save)
     friends = alice.friends.all()
+
+    # Traverse and read the properties on the relationships
+    for relationship in alice.friends.relationships():
+        print(relationship.target.name, relationship.since)
 
     # Raw query with node hydration
     results = session.execute_query(

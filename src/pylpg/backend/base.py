@@ -28,7 +28,21 @@ class Backend(abc.ABC):
     def is_node(self, value: typing.Any) -> bool: ...
 
     @abc.abstractmethod
-    def deserialize_node(self, record: typing.Any) -> dict[str, typing.Any]: ...
+    def deserialize_node(self, record: typing.Any) -> dict[str, typing.Any]:
+        """Return a node record as a dict of its properties.
+
+        The dict also carries `_labels` and `_database_id`.
+        """
+        ...
+
+    @abc.abstractmethod
+    def deserialize_relationship(self, record: typing.Any) -> dict[str, typing.Any]:
+        """Return a relationship record as a dict of its properties.
+
+        The dict also carries `_database_id`, `_start_id` and `_end_id`.
+        The record must come from a matched pattern, not from a path.
+        """
+        ...
 
     @abc.abstractmethod
     def create_node(self, node: "pylpg.node.Node") -> dict[str, typing.Any]: ...

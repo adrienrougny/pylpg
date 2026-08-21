@@ -31,3 +31,24 @@ class Person2(pylpg.node.Node):
     known_by = pylpg.relationship.RelationshipFrom(
         relationship_class=Knows,
     )
+
+
+class Ordered(pylpg.relationship.Relationship):
+    __type__ = "ORDERED"
+    order: int | None = None
+
+
+class Person3(pylpg.node.Node):
+    """Person with ordered and undirected descriptors for relationship tests."""
+
+    __labels__ = frozenset({"Person3"})
+    name: str
+    items = pylpg.relationship.RelationshipTo(
+        relationship_class=Ordered,
+    )
+    items_of = pylpg.relationship.RelationshipFrom(
+        relationship_class=Ordered,
+    )
+    linked = pylpg.relationship.RelationshipUndirected(
+        relationship_class=Ordered,
+    )

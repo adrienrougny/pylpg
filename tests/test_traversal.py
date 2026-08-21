@@ -248,3 +248,141 @@ def test_traversal_after_prefetch_queries_live(session, backend, diamond):
     with count_queries(backend) as counter:
         root.friends.all()
     assert counter["count"] == 1
+
+
+def test_relationships_read_properties(session):
+    box = tests.models.Person3(name="Box")
+    item = tests.models.Person3(name="Item")
+    session.save([box, item])
+    box.items.connect(item, order=3)
+    relationships = box.items.relationships()
+    assert len(relationships) == 1
+    assert relationships[0].order == 3
+    assert relationships[0].source._database_id == box._database_id
+    assert relationships[0].target._database_id == item._database_id
+
+
+def test_relationships_without_properties(session):
+    box = tests.models.Person3(name="Box")
+    item = tests.models.Person3(name="Item")
+    session.save([box, item])
+    box.items.connect(item)
+    relationships = box.items.relationships()
+    assert len(relationships) == 1
+    assert relationships[0].order is None
+
+
+def test_relationships_incoming(session):
+    box = tests.models.Person3(name="Box")
+    item = tests.models.Person3(name="Item")
+    session.save([box, item])
+    box.items.connect(item, order=1)
+    relationships = item.items_of.relationships()
+    assert len(relationships) == 1
+    assert relationships[0].order == 1
+    assert relationships[0].source._database_id == box._database_id
+    assert relationships[0].target._database_id == item._database_id
+
+
+def test_relationships_undirected_keeps_stored_direction(session):
+    left = tests.models.Person3(name="Left")
+    middle = tests.models.Person3(name="Middle")
+    right = tests.models.Person3(name="Right")
+    session.save([left, middle, right])
+    middle.items.connect(right, order=1)
+    left.items.connect(middle, order=2)
+    relationships = middle.linked.relationships()
+    by_order = {relationship.order: relationship for relationship in relationships}
+    assert set(by_order) == {1, 2}
+    assert by_order[1].source._database_id == middle._database_id
+    assert by_order[1].target._database_id == right._database_id
+    assert by_order[2].source._database_id == left._database_id
+    assert by_order[2].target._database_id == middle._database_id
+
+
+def test_relationships_parallel_edges(session):
+    box = tests.models.Person3(name="Box")
+    item = tests.models.Person3(name="Item")
+    session.save([box, item])
+    box.items.connect(item, order=0)
+    box.items.connect(item, order=1)
+    relationships = box.items.relationships()
+    assert sorted(relationship.order for relationship in relationships) == [0, 1]
+    assert len(box.items.all()) == 2
+
+
+def test_relationships_self_loop(session):
+    person = tests.models.Person3(name="Loop")
+    session.save(person)
+    person.items.connect(person, order=7)
+    for bound_relationship in (person.items, person.items_of, person.linked):
+        relationships = bound_relationship.relationships()
+        assert len(relationships) == 1
+        assert relationships[0].order == 7
+        assert relationships[0].source._database_id == person._database_id
+        assert relationships[0].target._database_id == person._database_id
+
+
+def test_relationships_rebuild_ordered_list(session):
+    box = tests.models.Person3(name="Box")
+    items = [tests.models.Person3(name=name) for name in ("z", "y", "x")]
+    shared = tests.models.Person3(name="q")
+    session.save([shared, box, *items])
+    for index, item in enumerate([*items, shared]):
+        box.items.connect(item, order=index)
+    relationships = sorted(
+        box.items.relationships(), key=lambda relationship: relationship.order
+    )
+    names = [relationship.target.name for relationship in relationships]
+    assert names == ["z", "y", "x", "q"]
+
+
+def test_relationships_match_prefetch(session):
+    box = tests.models.Person3(name="Box")
+    item = tests.models.Person3(name="Item")
+    session.save([box, item])
+    box.items.connect(item, order=4)
+    live = box.items.relationships()
+    with session.prefetch(roots=[box]):
+        prefetched = box.items.relationships()
+    assert [relationship.order for relationship in live] == [
+        relationship.order for relationship in prefetched
+    ]
+    assert [relationship._database_id for relationship in live] == [
+        relationship._database_id for relationship in prefetched
+    ]
+
+
+def test_relationships_issue_no_queries_after_prefetch(session, backend):
+    box = tests.models.Person3(name="Box")
+    item = tests.models.Person3(name="Item")
+    session.save([box, item])
+    box.items.connect(item, order=5)
+    with session.prefetch(roots=[box]):
+        with count_queries(backend) as counter:
+            box.items.relationships()
+    assert counter["count"] == 0
+
+
+def test_relationship_from_traversal_updates_instead_of_creating(session):
+    box = tests.models.Person3(name="Box")
+    item = tests.models.Person3(name="Item")
+    session.save([box, item])
+    box.items.connect(item, order=1)
+    relationship = box.items.relationships()[0]
+    assert relationship.is_saved()
+    relationship.order = 2
+    session.save(relationship)
+    relationships = box.items.relationships()
+    assert len(relationships) == 1
+    assert relationships[0].order == 2
+
+
+def test_all_returns_nodes(session):
+    box = tests.models.Person3(name="Box")
+    item = tests.models.Person3(name="Item")
+    session.save([box, item])
+    box.items.connect(item, order=1)
+    (found,) = box.items.all()
+    assert isinstance(found, tests.models.Person3)
+    assert found.name == "Item"

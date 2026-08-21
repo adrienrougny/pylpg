@@ -155,6 +155,26 @@ for friend in friends:
     print(friend.name)
 ```
 
+To read the properties stored on the relationships themselves, use
+`relationships()` instead of `all()`:
+
+```python
+for relationship in alice.friends.relationships():
+    print(relationship.target.name, relationship.since)
+```
+
+Each relationship carries its properties, its source and its target, and is
+already saved, so it can be modified and saved again:
+
+```python
+relationship = alice.friends.relationships()[0]
+relationship.since = "2025"
+session.save(relationship)
+```
+
+`all()` and `relationships()` are separate queries whose results are not
+necessarily in the same order, so they must not be paired up by position.
+
 ## Batch operations
 
 Save multiple items at once using `session.save(list)`:

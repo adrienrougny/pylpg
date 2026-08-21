@@ -65,6 +65,13 @@ class Neo4jBackend(pylpg.backend.base.Backend):
         properties["_database_id"] = record.element_id
         return properties
 
+    def deserialize_relationship(self, record: typing.Any) -> dict[str, typing.Any]:
+        properties = dict(record)
+        properties["_database_id"] = record.element_id
+        properties["_start_id"] = record.start_node.element_id
+        properties["_end_id"] = record.end_node.element_id
+        return properties
+
     def create_node(self, node: pylpg.node.Node) -> dict[str, typing.Any]:
         cypher, params = pylpg.cypher.build_create_node_query(
             node=node, database_id_func_name=self._database_id_func_name

@@ -100,6 +100,44 @@ class BoundRelationship:
 
     def all(self) -> list[pylpg.node.Node]:
         """Return all nodes connected to the owner via this relationship."""
+        return [target for (target, _) in self._traverse()]
+
+    def relationships(self) -> list[Relationship]:
+        """Return the relationships connecting the owner to those nodes.
+
+        Each relationship carries its properties, its source and its target.
+        `all()` and `relationships()` are separate queries whose results are
+        not necessarily in the same order, so they must not be paired up by
+        position.
+
+        Example:
+            ```python
+            for relationship in box.items.relationships():
+                print(relationship.order, relationship.target)
+            ```
+        """
+        relationship_class = self._descriptor._relationship_class
+        relationships = []
+        for target, deserialized_relationship in self._traverse():
+            properties = {
+                key: value
+                for key, value in deserialized_relationship.items()
+                if key in relationship_class.__primitive_properties__
+            }
+            if deserialized_relationship["_start_id"] == self._owner._database_id:
+                (source, relationship_target) = (self._owner, target)
+            else:
+                (source, relationship_target) = (target, self._owner)
+            relationship = relationship_class(
+                source=source,
+                target=relationship_target,
+                **properties,
+            )
+            relationship._database_id = deserialized_relationship["_database_id"]
+            relationships.append(relationship)
+        return relationships
+
+    def _traverse(self) -> list[tuple[pylpg.node.Node, dict[str, typing.Any]]]:
         return self._get_session()._traverse(
             node=self._owner,
             relationship_type=self._descriptor._relationship_class.__type__,

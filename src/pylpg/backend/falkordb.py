@@ -65,6 +65,13 @@ class FalkorDBBackend(pylpg.backend.base.Backend):
         properties["_database_id"] = record.id
         return properties
 
+    def deserialize_relationship(self, record: typing.Any) -> dict[str, typing.Any]:
+        properties = dict(record.properties)
+        properties["_database_id"] = record.id
+        properties["_start_id"] = record.src_node
+        properties["_end_id"] = record.dest_node
+        return properties
+
     def create_node(self, node: pylpg.node.Node) -> dict[str, typing.Any]:
         cypher, params = pylpg.cypher.build_create_node_query(
             node=node, database_id_func_name=self._database_id_func_name

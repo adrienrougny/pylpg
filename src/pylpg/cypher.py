@@ -187,10 +187,10 @@ def _traverse_pattern(
     relationship_type: str, direction: pylpg.relationship.Direction
 ) -> str:
     if direction == pylpg.relationship.Direction.OUTGOING:
-        return f"(source)-[:{relationship_type}]->(target)"
+        return f"(source)-[relationship:{relationship_type}]->(target)"
     if direction == pylpg.relationship.Direction.INCOMING:
-        return f"(source)<-[:{relationship_type}]-(target)"
-    return f"(source)-[:{relationship_type}]-(target)"
+        return f"(source)<-[relationship:{relationship_type}]-(target)"
+    return f"(source)-[relationship:{relationship_type}]-(target)"
 
 
 def build_traverse_query(
@@ -205,7 +205,7 @@ def build_traverse_query(
     cypher = (
         f"MATCH {pattern} "
         f"WHERE {database_id_func_name}(source) = $source_id "
-        f"RETURN target"
+        f"RETURN target, relationship"
     )
     params = {"source_id": node._database_id}
     return cypher, params
@@ -224,6 +224,6 @@ def build_batch_traverse_query(
         f"UNWIND $source_ids AS source_id "
         f"MATCH {pattern} "
         f"WHERE {database_id_func_name}(source) = source_id "
-        f"RETURN source_id, target"
+        f"RETURN source_id, target, relationship"
     )
     return cypher, {"source_ids": source_ids}
